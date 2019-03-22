@@ -2,18 +2,21 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"time"
+
 	"github.com/jessevdk/go-flags"
 	"github.com/mackerelio/checkers"
 	"github.com/ziutek/mymysql/mysql"
 	_ "github.com/ziutek/mymysql/native"
-	"os"
 )
 
 type mysqlSetting struct {
-	Host string `short:"H" long:"host" default:"localhost" description:"Hostname"`
-	Port string `short:"p" long:"port" default:"3306" description:"Port"`
-	User string `short:"u" long:"user" default:"root" description:"Username"`
-	Pass string `short:"P" long:"password" default:"" description:"Password"`
+	Host    string        `short:"H" long:"host" default:"localhost" description:"Hostname"`
+	Port    string        `short:"p" long:"port" default:"3306" description:"Port"`
+	User    string        `short:"u" long:"user" default:"root" description:"Username"`
+	Pass    string        `short:"P" long:"password" default:"" description:"Password"`
+	Timeout time.Duration `long:"timeout" default:"5s" description:"Timeout to connect mysql"`
 }
 
 type connectionOpts struct {
@@ -45,6 +48,7 @@ func checkUptime() *checkers.Checker {
 	}
 
 	db := mysql.New("tcp", "", fmt.Sprintf("%s:%s", opts.mysqlSetting.Host, opts.mysqlSetting.Port), opts.mysqlSetting.User, opts.mysqlSetting.Pass, "")
+	db.SetTimeout(opts.Timeout)
 	err = db.Connect()
 	if err != nil {
 		return checkers.Critical("couldn't connect DB")
@@ -66,4 +70,3 @@ func checkUptime() *checkers.Checker {
 	}
 	return checkers.Ok(fmt.Sprintf("up %s", uptime2str(Uptime)))
 }
-

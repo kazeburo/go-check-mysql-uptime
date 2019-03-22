@@ -1,27 +1,30 @@
-VERSION=0.0.1
+VERSION=0.0.5
+LDFLAGS=-ldflags "-X main.Version=${VERSION}"
 
 all: check-mysql-uptime
 
 .PHONY: check-mysql-uptime
 
-gom:
-	go get -u github.com/mattn/gom
-
 bundle:
-	gom install
+	dep ensure
+
+update:
+	dep ensure -update
 
 check-mysql-uptime: check-mysql-uptime.go
-	gom build -o check-mysql-uptime
+	go build $(LDFLAGS) -o check-mysql-uptime
 
-linux: check-mysql-uptime.go
-	GOOS=linux GOARCH=amd64 gom build -o check-mysql-uptime
+linux: main.go
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o check-mysql-uptime
+
+check:
+	go test ./...
 
 fmt:
 	go fmt ./...
 
-dist:
-	git archive --format tgz HEAD -o check-mysql-uptime-$(VERSION).tar.gz --prefix check-mysql-uptime-$(VERSION)/
-
-clean:
-	rm -rf check-mysql-uptime check-mysql-uptime-*.tar.gz
-
+tag:
+	git tag v${VERSION}
+	git push origin v${VERSION}
+	git push origin master
+	goreleaser --rm-dist

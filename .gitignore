@@ -23,8 +23,7 @@ _testmain.go
 *.test
 *.prof
 
-_vendor
 check-mysql-uptime
-check-mysql-uptime-*
+vendor/
+dist/
 *~
-
