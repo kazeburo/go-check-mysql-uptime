@@ -65,22 +65,10 @@ func checkUptime() *checkers.Checker {
 
 	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
 	defer cancel()
-	ch := make(chan error, 1)
+
 	var uptime int64
-
-	go func() {
-		ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
-	}()
-
-	select {
-	case err = <-ch:
-		// nothing
-	case <-ctx.Done():
-		err = fmt.Errorf("connection or query timeout")
-	}
-
-	if err != nil {
-		return checkers.Critical(fmt.Sprintf("couldn't execute query: %v", err))
+	if err := db.QueryRowContext(ctx, "SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime); err != nil {
+		return checkers.Critical(fmt.Sprintf("couldn't execute query: %s", err.Error()))
 	}
 
 	if opts.Crit > 0 && uptime < opts.Crit {
