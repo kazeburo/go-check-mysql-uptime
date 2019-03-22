@@ -14,7 +14,7 @@ update:
 check-mysql-uptime: check-mysql-uptime.go
 	go build $(LDFLAGS) -o check-mysql-uptime
 
-linux: main.go
+linux: check-mysql-uptime.go
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o check-mysql-uptime
 
 check:

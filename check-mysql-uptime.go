@@ -1,14 +1,15 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
 
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jessevdk/go-flags"
 	"github.com/mackerelio/checkers"
-	"github.com/ziutek/mymysql/mysql"
-	_ "github.com/ziutek/mymysql/native"
 )
 
 type mysqlSetting struct {
@@ -47,26 +48,45 @@ func checkUptime() *checkers.Checker {
 		os.Exit(1)
 	}
 
-	db := mysql.New("tcp", "", fmt.Sprintf("%s:%s", opts.mysqlSetting.Host, opts.mysqlSetting.Port), opts.mysqlSetting.User, opts.mysqlSetting.Pass, "")
-	db.SetTimeout(opts.Timeout)
-	err = db.Connect()
+	db, err := sql.Open(
+		"mysql",
+		fmt.Sprintf(
+			"%s:%s@tcp(%s:%s)/",
+			opts.mysqlSetting.User,
+			opts.mysqlSetting.Pass,
+			opts.mysqlSetting.Host,
+			opts.mysqlSetting.Port,
+		),
+	)
 	if err != nil {
-		return checkers.Critical("couldn't connect DB")
+		return checkers.Critical(fmt.Sprintf("couldn't connect DB: %v", err))
 	}
 	defer db.Close()
 
-	rows, res, err := db.Query("SHOW GLOBAL STATUS LIKE 'Uptime'")
+	ctx, cancel := context.WithTimeout(context.Background(), opts.Timeout)
+	defer cancel()
+	ch := make(chan error, 1)
+	var uptime int64
+
+	go func() {
+		ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
+	}()
+
+	select {
+	case err = <-ch:
+		// nothing
+	case <-ctx.Done():
+		err = fmt.Errorf("connection or query timeout")
+	}
+
 	if err != nil {
-		return checkers.Critical("couldn't execute query")
+		return checkers.Critical(fmt.Sprintf("couldn't execute query: %v", err))
 	}
 
-	idxValue := res.Map("Value")
-	Uptime := rows[0].Int64(idxValue)
-
-	if opts.Crit > 0 && Uptime < opts.Crit {
-		return checkers.Critical(fmt.Sprintf("up %s < %s", uptime2str(Uptime), uptime2str(opts.Crit)))
-	} else if opts.Warn > 0 && Uptime < opts.Warn {
-		return checkers.Warning(fmt.Sprintf("up %s < %s", uptime2str(Uptime), uptime2str(opts.Warn)))
+	if opts.Crit > 0 && uptime < opts.Crit {
+		return checkers.Critical(fmt.Sprintf("up %s < %s", uptime2str(uptime), uptime2str(opts.Crit)))
+	} else if opts.Warn > 0 && uptime < opts.Warn {
+		return checkers.Warning(fmt.Sprintf("up %s < %s", uptime2str(uptime), uptime2str(opts.Warn)))
 	}
-	return checkers.Ok(fmt.Sprintf("up %s", uptime2str(Uptime)))
+	return checkers.Ok(fmt.Sprintf("up %s", uptime2str(uptime)))
 }
