@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"runtime"
@@ -10,25 +9,19 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jessevdk/go-flags"
+	"github.com/kazeburo/go-mysqlflags"
 	"github.com/mackerelio/checkers"
 )
 
 // Version by Makefile
 var version string
 
-type mysqlSetting struct {
-	Host    string        `short:"H" long:"host" default:"localhost" description:"Hostname"`
-	Port    string        `short:"p" long:"port" default:"3306" description:"Port"`
-	User    string        `short:"u" long:"user" default:"root" description:"Username"`
-	Pass    string        `short:"P" long:"password" default:"" description:"Password"`
+type Opts struct {
+	mysqlflags.MyOpts
 	Timeout time.Duration `long:"timeout" default:"5s" description:"Timeout to connect mysql"`
-}
-
-type connectionOpts struct {
-	mysqlSetting
-	Crit    int64 `short:"c" long:"critical" description:"critical if uptime seconds is less than this number"`
-	Warn    int64 `short:"w" long:"warning" description:"warning if uptime seconds is less than this number"`
-	Version bool  `short:"v" long:"version" description:"Show version"`
+	Crit    int64         `short:"c" long:"critical" description:"critical if uptime seconds is less than this number"`
+	Warn    int64         `short:"w" long:"warning" description:"warning if uptime seconds is less than this number"`
+	Version bool          `short:"v" long:"version" description:"Show version"`
 }
 
 func uptime2str(uptime int64) string {
@@ -46,7 +39,7 @@ func main() {
 }
 
 func checkUptime() *checkers.Checker {
-	opts := connectionOpts{}
+	opts := Opts{}
 	psr := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
 	_, err := psr.Parse()
 	if opts.Version {
@@ -61,16 +54,7 @@ func checkUptime() *checkers.Checker {
 		os.Exit(1)
 	}
 
-	db, err := sql.Open(
-		"mysql",
-		fmt.Sprintf(
-			"%s:%s@tcp(%s:%s)/",
-			opts.mysqlSetting.User,
-			opts.mysqlSetting.Pass,
-			opts.mysqlSetting.Host,
-			opts.mysqlSetting.Port,
-		),
-	)
+	db, err := mysqlflags.OpenDB(opts.MyOpts, opts.Timeout, false)
 	if err != nil {
 		return checkers.Critical(fmt.Sprintf("couldn't connect DB: %v", err))
 	}
@@ -82,7 +66,17 @@ func checkUptime() *checkers.Checker {
 	var uptime int64
 
 	go func() {
-		ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
+		var ps int64
+		e := db.QueryRow("SELECT @@performance_schema").Scan(&ps)
+		if e != nil {
+			ch <- e
+			return
+		}
+		if ps == 1 {
+			ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM performance_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
+		} else {
+			ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
+		}
 	}()
 
 	select {
