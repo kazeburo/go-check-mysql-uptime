@@ -9,17 +9,20 @@ Usage:
   check-mysql-uptime [OPTIONS]
 
 Application Options:
-  -H, --host=     Hostname (default: localhost)
-  -p, --port=     Port (default: 3306)
-  -u, --user=     Username (default: root)
-  -P, --password= Password
-      --timeout=  Timeout to connect mysql (default: 5s)
-  -c, --critical= critical if uptime seconds is less than this number
-  -w, --warning=  warning if uptime seconds is less than this number
-  -v, --version   Show version
+      --defaults-extra-file= path to defaults-extra-file
+      --mysql-socket=        path to mysql listen sock
+  -H, --host=                Hostname (default: localhost)
+  -p, --port=                Port (default: 3306)
+  -u, --user=                Username (default: root)
+  -P, --password=            Password
+      --database=            database name connect to
+      --timeout=             Timeout to connect mysql (default: 5s)
+  -c, --critical=            critical if uptime seconds is less than this number
+  -w, --warning=             warning if uptime seconds is less than this number
+  -v, --version              Show version
 
 Help Options:
-  -h, --help      Show this help message
+  -h, --help                 Show this help message
 ```
 
 Example
