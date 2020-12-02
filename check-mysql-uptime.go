@@ -66,17 +66,8 @@ func checkUptime() *checkers.Checker {
 	var uptime int64
 
 	go func() {
-		var ps int64
-		e := db.QueryRow("SELECT @@performance_schema").Scan(&ps)
-		if e != nil {
-			ch <- e
-			return
-		}
-		if ps == 1 {
-			ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM performance_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
-		} else {
-			ch <- db.QueryRow("SELECT VARIABLE_VALUE FROM information_schema.GLOBAL_STATUS WHERE VARIABLE_NAME='Uptime'").Scan(&uptime)
-		}
+		var n string
+		ch <- db.QueryRow(`SHOW GLOBAL STATUS LIKE 'Uptime'`).Scan(&n, &uptime)
 	}()
 
 	select {
